@@ -1,6 +1,7 @@
+```dockerfile
 FROM php:8.3-apache
 
-# Install system dependencies
+# Install system dependencies and PHP extensions
 RUN apt-get update && apt-get install -y \
     git \
     unzip \
@@ -39,14 +40,17 @@ RUN composer install \
     --optimize-autoloader \
     --no-interaction
 
-# Install Node.js and build frontend assets
+# Install Node.js and npm from the official Node image
 COPY --from=node:22 /usr/local/bin/node /usr/local/bin/node
 COPY --from=node:22 /usr/local/lib/node_modules /usr/local/lib/node_modules
+
+# Configure npm command
 RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm
 
+# Build frontend assets
 RUN npm ci && npm run build
 
-# Configure Apache to serve Laravel's public directory
+# Configure Apache to use Render's port
 ENV PORT=10000
 
 RUN sed -i 's/Listen 80/Listen 10000/' /etc/apache2/ports.conf \
@@ -55,10 +59,20 @@ RUN sed -i 's/Listen 80/Listen 10000/' /etc/apache2/ports.conf \
     && sed -i 's|/var/www/html|/var/www/html/public|g' \
        /etc/apache2/sites-available/000-default.conf
 
+# Allow Laravel .htaccess rules
+RUN printf '<Directory /var/www/html/public>\n\
+    AllowOverride All\n\
+    Require all granted\n\
+</Directory>\n' > /etc/apache2/conf-available/laravel.conf \
+    && a2enconf laravel
+
 # Configure Laravel directory permissions
 RUN chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
+# Expose application port
 EXPOSE 10000
 
+# Start Apache
 CMD ["apache2-foreground"]
+```
