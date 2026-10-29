@@ -73,4 +73,12 @@ RUN chown -R www-data:www-data storage bootstrap/cache \
 EXPOSE 10000
 
 # Start Apache
-CMD ["apache2-foreground"]
+RUN printf '#!/bin/sh\n\
+php artisan migrate --force\n\
+php artisan storage:link || true\n\
+php artisan config:cache\n\
+chown -R www-data:www-data storage bootstrap/cache\n\
+exec apache2-foreground\n' > /usr/local/bin/start.sh \
+ && chmod +x /usr/local/bin/start.sh
+
+CMD ["/usr/local/bin/start.sh"]
